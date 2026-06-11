@@ -5,34 +5,49 @@ import { AICopilotWidget } from "@/components/copilot/AICopilotWidget";
 import { SectionHeader } from "@/components/common/SectionHeader";
 import { ChannelIcon } from "@/components/common/ChannelBadge";
 import { StatusPill } from "@/components/common/StatusPill";
-import { campaigns, channelPerformance, engagement14d, engagement30d, engagement90d, sparklineData, sparklineDataDown } from "@/data/mockData";
+import { channelPerformance, engagement14d, engagement30d, engagement90d, sparklineData, sparklineDataDown } from "@/data/mockData";
 import { formatINR, formatNumber, formatPercent } from "@/lib/format";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
+import { fetchCampaigns, fetchStats } from "@/lib/api/api";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Dashboard — Xeno Copilot" },
-      { name: "description", content: "Your marketing command center: KPIs, AI Copilot, campaigns and engagement." },
     ],
   }),
   component: Dashboard,
 });
 
+export const tooltipStyle: React.CSSProperties = {
+  background: "#212130",
+  border: "1px solid #2A2A38",
+  borderRadius: 8,
+  fontSize: 12,
+  color: "#F1F1F5",
+};
+
 function Dashboard() {
   const [range, setRange] = useState<"14D" | "30D" | "90D">("14D");
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
   const data = range === "14D" ? engagement14d : range === "30D" ? engagement30d : engagement90d;
+
+  useEffect(() => {
+    fetchCampaigns().then(setCampaigns);
+    fetchStats().then(setStats);
+  }, []);
 
   return (
     <div className="space-y-6 p-6">
       {/* KPI Row */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KPICard icon={Users} label="Total Customers" value="48,291" delta="12.4%" deltaPositive sparkData={sparklineData} sparkColor="#6366F1" iconColor="text-primary" />
-        <KPICard icon={Send} label="Campaigns Sent" value="127" delta="+8 this week" deltaPositive sparkData={sparklineData} sparkColor="#22C55E" iconColor="text-emerald-400" />
-        <KPICard icon={Mail} label="Avg. Open Rate" value="34.6%" delta="1.2%" deltaPositive={false} sparkData={sparklineDataDown} sparkColor="#F59E0B" iconColor="text-amber-400" />
-        <KPICard icon={TrendingUp} label="Revenue Attributed" value="₹24.8L" delta="18.7%" deltaPositive sparkData={sparklineData} sparkColor="#22C55E" iconColor="text-emerald-400" />
+        <KPICard icon={Users} label="Total Customers" value={stats ? formatNumber(stats.totalCustomers) : "..."} delta="12.4%" deltaPositive sparkData={sparklineData} sparkColor="#6366F1" iconColor="text-primary" />
+        <KPICard icon={Send} label="Campaigns Sent" value={stats ? formatNumber(stats.activeCampaigns) : "..."} delta="+8 this week" deltaPositive sparkData={sparklineData} sparkColor="#22C55E" iconColor="text-emerald-400" />
+        <KPICard icon={Mail} label="Avg. Open Rate" value={stats ? `${stats.avgOpenRate}%` : "..."} delta="1.2%" deltaPositive={false} sparkData={sparklineDataDown} sparkColor="#F59E0B" iconColor="text-amber-400" />
+        <KPICard icon={TrendingUp} label="Revenue Attributed" value={stats ? formatINR(stats.totalRevenue) : "..."} delta="18.7%" deltaPositive sparkData={sparklineData} sparkColor="#22C55E" iconColor="text-emerald-400" />
       </div>
 
       {/* Copilot hero */}
@@ -63,7 +78,9 @@ function Dashboard() {
                     <td className="py-3 font-medium text-foreground">{c.name}</td>
                     <td className="py-3"><ChannelIcon channel={c.channel} /></td>
                     <td className="py-3 text-muted-foreground">{formatNumber(c.sent)}</td>
-                    <td className="py-3 text-muted-foreground">{formatPercent((c.opened / c.sent) * 100, 1)}</td>
+                    <td className="py-3 text-muted-foreground">
+                      {c.sent > 0 ? formatPercent((c.opened / c.sent) * 100, 1) : "0%"}
+                    </td>
                     <td className="py-3"><StatusPill status={c.status} /></td>
                   </tr>
                 ))}
@@ -106,14 +123,10 @@ function Dashboard() {
           action={
             <div className="inline-flex rounded-md border border-border bg-background p-0.5">
               {(["14D", "30D", "90D"] as const).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setRange(r)}
-                  className={cn(
-                    "rounded px-3 py-1 text-xs font-medium transition-colors",
+                <button key={r} onClick={() => setRange(r)}
+                  className={cn("rounded px-3 py-1 text-xs font-medium transition-colors",
                     range === r ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-                  )}
-                >{r}</button>
+                  )}>{r}</button>
               ))}
             </div>
           }
@@ -154,11 +167,3 @@ function Legend({ color, label }: { color: string; label: string }) {
     </span>
   );
 }
-
-export const tooltipStyle: React.CSSProperties = {
-  background: "#212130",
-  border: "1px solid #2A2A38",
-  borderRadius: 8,
-  fontSize: 12,
-  color: "#F1F1F5",
-};

@@ -175,6 +175,84 @@ app.get('/campaigns/:id/stats', async (req: any, res: any) => {
 
   res.json({ campaign, communications: comms });
 });
+// ─── AI ROUTES ───────────────────────────────────────────
+app.post('/ai/generate-message', async (req: any, res: any) => {
+  const { segment, channel } = req.body;
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: `Write a short ${channel} marketing message for a ${segment} customer segment of an Indian fashion/lifestyle brand. Under 160 chars, friendly, with CTA. Just the message text.` }],
+      max_tokens: 200,
+    })
+  });
+  const data = await response.json() as any;
+  res.json({ message: data.choices[0].message.content.trim() });
+});
+
+app.post('/ai/copilot', async (req: any, res: any) => {
+  const { messages, customerStats } = req.body;
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: `You are Xeno Copilot, an AI assistant for a CRM marketing platform used by Indian consumer brands. You help marketing managers understand their customers, build segments, and draft campaigns. Current data: ${JSON.stringify(customerStats)}. Be concise, actionable, and use ₹ for currency.` },
+        ...messages
+      ],
+      max_tokens: 500,
+    })
+  });
+  const data = await response.json() as any;
+  res.json({ reply: data.choices[0].message.content.trim() });
+});
+
+app.post('/ai/segment', async (req: any, res: any) => {
+  const { query } = req.body;
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: `Convert this CRM query to JSON filters. Available fields: segment (vip/loyal/at-risk/new/lapsed), city, preferred_channel (whatsapp/sms/email/rcs), min_spend, max_spend, min_orders, max_orders. Query: "${query}". Respond ONLY with JSON like {"segment":"vip","min_spend":10000}` }],
+      max_tokens: 200,
+    })
+  });
+  const data = await response.json() as any;
+  try {
+    const filters = JSON.parse(data.choices[0].message.content.trim());
+    // Apply filters to get matching customers
+    let query2 = supabase.from('customers').select('*');
+    if (filters.segment) query2 = query2.eq('segment', filters.segment);
+    if (filters.city) query2 = query2.eq('city', filters.city);
+    if (filters.preferred_channel) query2 = query2.eq('preferred_channel', filters.preferred_channel);
+    if (filters.min_spend) query2 = query2.gte('total_spend', filters.min_spend);
+    if (filters.max_spend) query2 = query2.lte('total_spend', filters.max_spend);
+    if (filters.min_orders) query2 = query2.gte('total_orders', filters.min_orders);
+    if (filters.max_orders) query2 = query2.lte('total_orders', filters.max_orders);
+    const { data: customers } = await query2;
+    res.json({ filters, customers, count: customers?.length || 0 });
+  } catch {
+    res.json({ filters: {}, customers: [], count: 0 });
+  }
+});
+
+// ─── DASHBOARD STATS ─────────────────────────────────────
+app.get('/stats', async (req: any, res: any) => {
+  const { data: customers } = await supabase.from('customers').select('id, segment, total_spend');
+  const { data: campaigns } = await supabase.from('campaigns').select('sent, delivered, opened, clicked, status');
+  
+  const totalCustomers = customers?.length || 0;
+  const totalRevenue = customers?.reduce((sum: number, c: any) => sum + (c.total_spend || 0), 0) || 0;
+  const totalSent = campaigns?.reduce((sum: number, c: any) => sum + (c.sent || 0), 0) || 0;
+  const totalOpened = campaigns?.reduce((sum: number, c: any) => sum + (c.opened || 0), 0) || 0;
+  const avgOpenRate = totalSent > 0 ? ((totalOpened / totalSent) * 100).toFixed(1) : '0';
+  const activeCampaigns = campaigns?.filter((c: any) => c.status === 'active').length || 0;
+
+  res.json({ totalCustomers, totalRevenue, totalSent, avgOpenRate, activeCampaigns });
+});
 
 app.listen(3000, () => console.log('✅ CRM Backend running on port 3000'));
 export {};
