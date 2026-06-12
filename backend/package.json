@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "start": "npx ts-node src/index.ts",
+  "build": "echo 'no build needed'",
     "dev": "nodemon --exec \"npx ts-node src/index.ts\""
   },
   "keywords": [],
