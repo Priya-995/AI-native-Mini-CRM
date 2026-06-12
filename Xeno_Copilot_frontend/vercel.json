@@ -1,6 +1,4 @@
 {
-  "buildCommand": "cd Xeno_Copilot_frontend && npm install && npm run build",
-  "outputDirectory": "Xeno_Copilot_frontend/dist/client",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
