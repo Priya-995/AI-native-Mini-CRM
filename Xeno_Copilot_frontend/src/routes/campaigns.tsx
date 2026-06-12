@@ -155,7 +155,7 @@ function CampaignsPage() {
                 </div>
               ))}
             </div>
-
+             <AIInsightBox campaign={stats.campaign} />
             {/* Communications table */}
             <div className="rounded-lg border border-border overflow-hidden">
               <div className="border-b border-border px-3 py-2 text-xs font-medium text-muted-foreground uppercase">
@@ -220,23 +220,13 @@ function NewCampaignForm({ onSuccess }: { onSuccess: () => void }) {
     if (!segment || !channel) return;
     setGenerating(true);
     try {
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [{
-            role: "user",
-            content: `Write a short ${channel} marketing message for a ${segment} customer segment of an Indian fashion/lifestyle brand. Keep it under 160 characters, friendly, with a CTA. Use ₹ for currency if needed. Just the message text, nothing else.`
-          }],
-          max_tokens: 200,
-        })
-      });
-      const data = await res.json();
-      setMessage(data.choices[0].message.content.trim());
+      const res = await fetch(`${API}/ai/generate-message`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ segment, channel }),
+});
+const data = await res.json();
+setMessage(data.message);
       toast.success("Message generated!");
     } catch (e) {
       toast.error("Failed to generate message");
@@ -314,6 +304,49 @@ function NewCampaignForm({ onSuccess }: { onSuccess: () => void }) {
         <Send className="h-4 w-4" />
         {launching ? "Launching..." : "Launch Campaign"}
       </Button>
+    </div>
+  );
+}
+function AIInsightBox({ campaign }: { campaign: any }) {
+  const [insight, setInsight] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const generate = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/ai/campaign-insight`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaign }),
+      });
+      const data = await res.json();
+      setInsight(data.insight);
+    } catch {
+      toast.error('Failed to generate insight');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <p className="text-sm font-medium text-foreground">AI Insight</p>
+        </div>
+        {!insight && (
+          <button onClick={generate} disabled={loading}
+            className="text-xs text-primary hover:underline disabled:opacity-50">
+            {loading ? 'Generating...' : 'Generate →'}
+          </button>
+        )}
+      </div>
+      {insight ? (
+        <p className="text-sm text-muted-foreground leading-relaxed">{insight}</p>
+      ) : (
+        <p className="text-xs text-muted-foreground">Click Generate to get an AI summary of this campaign.</p>
+      )}
     </div>
   );
 }

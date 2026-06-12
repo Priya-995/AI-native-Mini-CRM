@@ -253,6 +253,117 @@ app.get('/stats', async (req: any, res: any) => {
 
   res.json({ totalCustomers, totalRevenue, totalSent, avgOpenRate, activeCampaigns });
 });
+const multer = require('multer');
+const { parse } = require('csv-parse/sync');
+const upload = multer({ storage: multer.memoryStorage() });
 
+
+app.post('/customers/import', upload.single('file'), async (req: any, res: any) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  
+  const filename = req.file.originalname.toLowerCase();
+  let records: any[] = [];
+
+  try {
+    if (filename.endsWith('.csv')) {
+      records = parse(req.file.buffer.toString(), {
+        columns: true, skip_empty_lines: true, trim: true,
+      });
+    } else if (filename.endsWith('.json')) {
+      records = JSON.parse(req.file.buffer.toString());
+      if (!Array.isArray(records)) throw new Error('JSON must be an array of objects');
+    } else {
+      return res.status(400).json({ error: 'Only .csv and .json files are supported' });
+    }
+
+    const rows = records.map((r: any) => ({
+      id: r.id || `c_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+      name: r.name || '',
+      email: r.email || '',
+      phone: r.phone || '',
+      city: r.city || '',
+      total_orders: parseInt(r.total_orders || '0'),
+      total_spend: parseFloat(r.total_spend || '0'),
+      last_order_date: r.last_order_date || null,
+      segment: r.segment || 'new',
+      preferred_channel: r.preferred_channel || 'whatsapp',
+      join_date: r.join_date || new Date().toISOString().split('T')[0],
+      rfm_r: parseInt(r.rfm_r || '3'),
+      rfm_f: parseInt(r.rfm_f || '3'),
+      rfm_m: parseInt(r.rfm_m || '3'),
+    }));
+
+    const { error } = await supabase.from('customers').upsert(rows);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, imported: rows.length });
+
+  } catch (err: any) {
+    res.status(400).json({ error: 'Import failed: ' + err.message });
+  }
+});
+app.get('/customers/:id/orders', async (req: any, res: any) => {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('customer_id', req.params.id)
+    .order('order_date', { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+app.post('/ai/campaign-insight', async (req: any, res: any) => {
+  const { campaign } = req.body;
+  const deliveryRate = campaign.sent > 0 ? ((campaign.delivered / campaign.sent) * 100).toFixed(1) : 0;
+  const clickRate = campaign.sent > 0 ? ((campaign.clicked / campaign.sent) * 100).toFixed(1) : 0;
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: `Summarize this campaign in 2-3 sentences for a marketing manager. Be specific with numbers and give one actionable recommendation.
+Campaign: ${campaign.name}
+Channel: ${campaign.channel}, Segment: ${campaign.segment_filter}
+Sent: ${campaign.sent}, Delivered: ${campaign.delivered} (${deliveryRate}%), Read: ${campaign.opened}, Clicked: ${campaign.clicked} (${clickRate}%)` }],
+      max_tokens: 200,
+    })
+  });
+  const data = await response.json() as any;
+  res.json({ insight: data.choices[0].message.content.trim() });
+});
+app.post('/orders/import', upload.single('file'), async (req: any, res: any) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  
+  const filename = req.file.originalname.toLowerCase();
+  let records: any[] = [];
+
+  try {
+    if (filename.endsWith('.csv')) {
+      records = parse(req.file.buffer.toString(), {
+        columns: true, skip_empty_lines: true, trim: true,
+      });
+    } else if (filename.endsWith('.json')) {
+      records = JSON.parse(req.file.buffer.toString());
+      if (!Array.isArray(records)) throw new Error('JSON must be an array');
+    } else {
+      return res.status(400).json({ error: 'Only .csv and .json supported' });
+    }
+
+    const rows = records.map((r: any) => ({
+      id: r.id || `o_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+      customer_id: r.customer_id,
+      amount: parseFloat(r.amount || '0'),
+      items: r.items || '',
+      status: r.status || 'completed',
+      order_date: r.order_date || new Date().toISOString().split('T')[0],
+    }));
+
+    const { error } = await supabase.from('orders').upsert(rows);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, imported: rows.length });
+
+  } catch (err: any) {
+    res.status(400).json({ error: 'Import failed: ' + err.message });
+  }
+});
 app.listen(3000, () => console.log('✅ CRM Backend running on port 3000'));
 export {};

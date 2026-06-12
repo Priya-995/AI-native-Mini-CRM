@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { Search, Sparkles, MessageSquare, Eye, UserPlus, X } from "lucide-react";
+import { Search, Sparkles, MessageSquare, Eye, UserPlus, X , Upload} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -10,6 +10,8 @@ import { ChannelBadge } from "@/components/common/ChannelBadge";
 import { SegmentPill } from "@/components/common/SegmentPill";
 import { formatINR, formatNumber, formatPhone, relativeTime } from "@/lib/format";
 import { toast } from "sonner";
+import { useRef } from "react";
+
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
@@ -31,12 +33,15 @@ function CustomersPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selected, setSelected] = useState<any | null>(null);
 
-  useEffect(() => {
+ const fetchCustomers = () => {
+    setLoading(true);
     fetch(`${API}/customers`)
       .then((r) => r.json())
       .then((data) => { setCustomers(data); setLoading(false); })
       .catch(() => { toast.error("Failed to load customers"); setLoading(false); });
-  }, []);
+  };
+
+  useEffect(() => { fetchCustomers(); }, []);
 
   const filtered = customers.filter((c) =>
     (channel === "all" || c.preferred_channel === channel) &&
@@ -64,6 +69,10 @@ function CustomersPage() {
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, email, phone…"
               className="h-9 w-72 rounded-md border border-border bg-surface pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none" />
           </div>
+
+
+          <ImportCSVButton onSuccess={fetchCustomers} />
+          <ImportOrdersButton />
           <Button onClick={() => setDrawerOpen(true)} className="h-9 bg-primary hover:bg-primary/90 text-primary-foreground">
             <Sparkles className="h-4 w-4" /> AI Segment Builder
           </Button>
@@ -125,7 +134,7 @@ function CustomersPage() {
                   <td className="px-4 py-3 text-muted-foreground">{c.city}</td>
                   <td className="px-4 py-3 text-muted-foreground">{c.total_orders}</td>
                   <td className="px-4 py-3 font-medium text-foreground">{formatINR(c.total_spend)}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{relativeTime(c.last_order_date)}</td>
+               <td className="px-4 py-3 text-muted-foreground">{c.last_order_date ? relativeTime(c.last_order_date) : '—'}</td>
                   <td className="px-4 py-3"><SegmentPill type={c.segment} /></td>
                   <td className="px-4 py-3"><ChannelBadge channel={c.preferred_channel} showLabel={false} /></td>
                   <td className="px-4 py-3">
@@ -169,6 +178,76 @@ function CustomersPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+function ImportOrdersButton() {
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const res = await fetch(`${API}/orders/import`, { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      toast.success(`✅ Imported ${data.imported} orders`);
+    } catch (err: any) {
+      toast.error(err.message || 'Import failed');
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  return (
+    <>
+      <input ref={fileRef} type="file" accept=".csv,.json" className="hidden" onChange={handleFile} />
+      <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing}
+        className="h-9 border-border bg-transparent hover:bg-surface-elevated">
+        <Upload className="h-4 w-4" />
+        {importing ? 'Importing...' : 'Import Orders'}
+      </Button>
+    </>
+  );
+}
+// Add this function inside the file
+function ImportCSVButton({ onSuccess }: { onSuccess: () => void }) {
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const res = await fetch(`${API}/customers/import`, { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      toast.success(`✅ Imported ${data.imported} customers`);
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err.message || 'Import failed');
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  return (
+    <>
+      <input ref={fileRef} type="file" accept=".csv,.json" className="hidden" onChange={handleFile} />
+      <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing}
+        className="h-9 border-border bg-transparent hover:bg-surface-elevated">
+        <Upload className="h-4 w-4" />
+        {importing ? 'Importing...' : 'Import CSV'}
+      </Button>
+    </>
   );
 }
 
@@ -282,6 +361,7 @@ function CustomerProfile({ c, onClose }: { c: any; onClose: () => void }) {
           <p className="mt-1 text-xs text-muted-foreground">
             {c.city} · Joined {c.join_date ? new Date(c.join_date).toLocaleDateString("en-IN", { month: "short", year: "numeric" }) : "—"}
           </p>
+          <p className="text-xs text-muted-foreground font-mono">ID: {c.id}</p>
         </div>
         <div className="flex flex-wrap gap-1.5">
           <SegmentPill type={c.segment} />
@@ -311,7 +391,7 @@ function CustomerProfile({ c, onClose }: { c: any; onClose: () => void }) {
             <div className="grid grid-cols-3 gap-3">
               <BigStat label="Lifetime Spend" value={formatINR(c.total_spend)} />
               <BigStat label="Orders" value={formatNumber(c.total_orders)} />
-              <BigStat label="Last Activity" value={relativeTime(c.last_order_date)} />
+              <BigStat label="Last Activity" value={c.last_order_date ? relativeTime(c.last_order_date) : '—'} />
             </div>
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
               <div className="flex items-start gap-3">
@@ -324,25 +404,15 @@ function CustomerProfile({ c, onClose }: { c: any; onClose: () => void }) {
                       : c.segment === "vip"
                       ? `VIP customer with ₹${formatNumber(c.total_spend)} lifetime spend. Great candidate for exclusive early-access campaigns.`
                       : c.segment === "lapsed"
-                      ? `Last ordered ${relativeTime(c.last_order_date)} ago. A re-engagement campaign could win them back.`
+                      ? `Last ordered ${c.last_order_date ? relativeTime(c.last_order_date) : 'a while'} ago.`
                       : `Active ${c.segment} customer. Keep them engaged with personalized recommendations.`}
                   </p>
                 </div>
               </div>
             </div>
           </TabsContent>
-          <TabsContent value="orders" className="mt-4">
-            <div className="space-y-2">
-              {Array.from({ length: Math.min(c.total_orders, 5) }).map((_, i) => (
-                <div key={i} className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Order #XN-{100432 - i * 17}</p>
-                    <p className="text-xs text-muted-foreground">{3 - (i % 3) + 1} items · {new Date(Date.now() - i * 12 * 86400000).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</p>
-                  </div>
-                  <p className="text-sm font-semibold text-foreground">{formatINR(Math.round(c.total_spend / Math.max(c.total_orders, 1) * (1 + i * 0.1)))}</p>
-                </div>
-              ))}
-            </div>
+         <TabsContent value="orders" className="mt-4">
+            <OrderHistory customerId={c.id} totalOrders={c.total_orders} />
           </TabsContent>
           <TabsContent value="prefs" className="mt-4 space-y-2 text-sm">
             <Pref label="Preferred channel" value={c.preferred_channel?.toUpperCase() || "—"} />
@@ -352,6 +422,34 @@ function CustomerProfile({ c, onClose }: { c: any; onClose: () => void }) {
           </TabsContent>
         </Tabs>
       </div>
+    </div>
+  );
+}
+function OrderHistory({ customerId, totalOrders }: { customerId: string; totalOrders: number }) {
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`${API}/customers/${customerId}/orders`)
+      .then(r => r.json())
+      .then(data => { setOrders(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [customerId]);
+
+  if (loading) return <p className="text-sm text-muted-foreground">Loading orders...</p>;
+  if (orders.length === 0) return <p className="text-sm text-muted-foreground">No orders found.</p>;
+
+  return (
+    <div className="space-y-2">
+      {orders.map((o, i) => (
+        <div key={o.id} className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">Order #{o.id.slice(-6).toUpperCase()}</p>
+            <p className="text-xs text-muted-foreground">{o.items} · {o.order_date}</p>
+          </div>
+          <p className="text-sm font-semibold text-foreground">{formatINR(o.amount)}</p>
+        </div>
+      ))}
     </div>
   );
 }

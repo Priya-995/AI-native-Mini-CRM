@@ -39,8 +39,38 @@ const campaigns = [
   { id: "cam9", name: "Summer Closeout", channel: "email", segment_filter: "new", message: "☀️ Summer sale ends soon! Up to 60% off selected items.", status: "draft", sent: 0, delivered: 0, opened: 0, clicked: 0 },
   { id: "cam10", name: "Loyalty Tier Upgrade", channel: "email", segment_filter: "loyal", message: "🌟 Great news! You've been upgraded to Gold tier. Enjoy exclusive benefits.", status: "completed", sent: 4200, delivered: 4180, opened: 2890, clicked: 1240 },
 ];
+const orders = [
+  { customer_id: "c1", amount: 4200, items: "Kurta Set, Dupatta", status: "completed", order_date: "2025-05-28" },
+  { customer_id: "c1", amount: 3800, items: "Saree, Blouse", status: "completed", order_date: "2025-04-10" },
+  { customer_id: "c1", amount: 5100, items: "Lehenga", status: "completed", order_date: "2025-02-14" },
+  { customer_id: "c2", amount: 2900, items: "Shirt x2, Trousers", status: "completed", order_date: "2025-04-10" },
+  { customer_id: "c2", amount: 3400, items: "Blazer", status: "completed", order_date: "2025-01-22" },
+  { customer_id: "c3", amount: 1800, items: "Top x3", status: "completed", order_date: "2025-03-02" },
+  { customer_id: "c3", amount: 2200, items: "Jeans, Belt", status: "completed", order_date: "2024-12-11" },
+  { customer_id: "c5", amount: 8900, items: "Designer Saree", status: "completed", order_date: "2025-06-01" },
+  { customer_id: "c5", amount: 6700, items: "Anarkali Set", status: "completed", order_date: "2025-04-20" },
+  { customer_id: "c5", amount: 4500, items: "Kurta, Palazzo", status: "completed", order_date: "2025-03-05" },
+  { customer_id: "c7", amount: 3100, items: "Dress x2", status: "completed", order_date: "2025-05-18" },
+  { customer_id: "c9", amount: 5600, items: "Bridal Dupatta, Suit", status: "completed", order_date: "2025-06-05" },
+  { customer_id: "c9", amount: 4200, items: "Silk Saree", status: "completed", order_date: "2025-04-30" },
+  { customer_id: "c13", amount: 3800, items: "Ethnic Jacket, Kurta", status: "completed", order_date: "2025-05-29" },
+  { customer_id: "c18", amount: 7200, items: "Wedding Lehenga", status: "completed", order_date: "2025-06-04" },
+  { customer_id: "c18", amount: 5400, items: "Party Wear Saree", status: "completed", order_date: "2025-05-01" },
+  { customer_id: "c11", amount: 2800, items: "Casual Shirt x3", status: "completed", order_date: "2025-05-12" },
+  { customer_id: "c15", amount: 3200, items: "Kurta Pyjama Set", status: "completed", order_date: "2025-04-28" },
+  { customer_id: "c20", amount: 4100, items: "Co-ord Set, Scarf", status: "completed", order_date: "2025-05-31" },
+  { customer_id: "c4", amount: 1200, items: "T-shirt x2", status: "completed", order_date: "2025-05-30" },
+];
+
+
 
 async function seed() {
+  console.log('Seeding orders...');
+const { error: e3 } = await supabase.from('orders').upsert(orders);
+if (e3) console.error('❌ Orders:', e3.message);
+else console.log('✅ Seeded', orders.length, 'orders');
+
+
   console.log('Seeding customers...');
   const { error: e1 } = await supabase.from('customers').upsert(customers);
   if (e1) console.error('❌ Customers:', e1.message);
@@ -53,6 +83,7 @@ async function seed() {
 
   console.log('Done! 🎉');
 }
+
 
 seed();
 export {};

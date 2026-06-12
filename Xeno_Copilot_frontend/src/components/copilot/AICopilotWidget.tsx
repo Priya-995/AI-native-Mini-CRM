@@ -7,18 +7,37 @@ import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY;
+
+// ── Shared store — survives navigation within the session ──────────
+export const copilotStore: {
+  pendingConvo?: {
+    id: string;
+    title: string;
+    preview: string;
+    updatedAt: string;
+    userText: string;
+    aiReply: string;
+  };
+} = {};
 
 export function AICopilotWidget() {
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<string | null>(null);
+  const [lastPrompt, setLastPrompt] = useState<string>("");
   const navigate = useNavigate();
 
-  const handleSend = async () => {
-    if (!value.trim()) return;
+  const handleSend = async (overrideText?: string) => {
+    const text = (overrideText ?? value).trim();
+    if (!text) return;
     setLoading(true);
     setResponse(null);
+    setLastPrompt(text);
+    setValue("");
+
     try {
+      // Fetch live stats for context
       let customerStats = {};
       try {
         const statsRes = await fetch(`${API}/stats`);
@@ -29,25 +48,36 @@ export function AICopilotWidget() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [{ role: "user", content: value }],
+          messages: [{ role: "user", content: text }],
           customerStats,
         }),
       });
       const data = await res.json();
       setResponse(data.reply);
-      setValue("");
-    } catch (e) {
+    } catch {
       toast.error("Copilot failed to respond");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+  const openFullChat = () => {
+    if (!lastPrompt || !response) {
+      navigate({ to: "/copilot" });
+      return;
     }
+
+    // Store the convo so the copilot page can pick it up
+    copilotStore.pendingConvo = {
+      id: `widget-${Date.now()}`,
+      title: lastPrompt.slice(0, 40),
+      preview: lastPrompt.slice(0, 50),
+      updatedAt: new Date().toISOString(),
+      userText: lastPrompt,
+      aiReply: response,
+    };
+
+    navigate({ to: "/copilot" });
   };
 
   return (
@@ -76,13 +106,13 @@ export function AICopilotWidget() {
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          onKeyDown={handleKeyDown}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
           placeholder="e.g. Who are my high-value customers who haven't purchased in 90 days?"
           className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
         />
         <Button
           size="sm"
-          onClick={handleSend}
+          onClick={() => handleSend()}
           disabled={loading || !value.trim()}
           className="h-7 w-7 shrink-0 bg-primary p-0 hover:bg-primary/90 disabled:opacity-50"
         >
@@ -93,11 +123,11 @@ export function AICopilotWidget() {
       {/* Suggestion chips */}
       <div className="mt-2 flex flex-wrap gap-1.5">
         {suggestedPrompts.slice(0, 3).map((p) => (
-          <SuggestionChip key={p} text={p} onClick={() => setValue(p)} />
+          <SuggestionChip key={p} text={p} onClick={() => handleSend(p)} />
         ))}
       </div>
 
-      {/* Inline response — compact */}
+      {/* Inline response */}
       {loading && (
         <p className="mt-3 text-xs text-muted-foreground animate-pulse flex items-center gap-1.5">
           <Sparkles className="h-3 w-3 text-primary" /> Thinking...
@@ -107,7 +137,7 @@ export function AICopilotWidget() {
         <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5">
           <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap line-clamp-4">{response}</p>
           <button
-            onClick={() => navigate({ to: "/copilot" })}
+            onClick={openFullChat}
             className="mt-1.5 text-[11px] text-primary hover:underline"
           >
             Continue in full chat →
