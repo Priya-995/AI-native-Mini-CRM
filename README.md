@@ -1,8 +1,6 @@
 # Xeno Copilot — AI-Native Mini CRM
 
-> Built for the Xeno FDE Internship Assignment 2026
-
-A production-grade, AI-native CRM that helps consumer brands intelligently reach their shoppers — segment audiences with natural language, draft personalized campaigns with AI, and track message delivery in real time through a full callback-driven channel service.
+> A production-grade, AI-native CRM that helps consumer brands intelligently reach their shoppers — segment audiences with natural language, draft personalized campaigns with AI, and track message delivery in real time through a full callback-driven channel service.
 
 ---
 
@@ -10,8 +8,8 @@ A production-grade, AI-native CRM that helps consumer brands intelligently reach
 
 | Service | URL |
 |---|---|
-| Frontend | [Railway](https://ai-native-mini-crm-production.up.railway.app) |
-| Backend API | [Railway](https://ai-native-mini-crm-production-717d.up.railway.app) |
+| Frontend | [Railway](https://ai-native-mini-crm-production-717d.up.railway.app) |
+| Backend | [Railway](https://ai-native-mini-crm-production.up.railway.app) |
 | Channel Service | [Render](https://ai-native-mini-crm-channel-service.onrender.com) |
 
 ---
@@ -318,5 +316,3 @@ This project was built AI-natively using Claude (Anthropic) throughout:
 Every line of code has been reviewed, understood, and defended — ready to discuss any part of the implementation in the interview.
 
 ---
-
-*Built by [Your Name] for the Xeno FDE Internship Drive 2026*
